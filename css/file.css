@@ -91,3 +91,8 @@
 	width: 100%;
 	text-align: center;
 }
+
+.center {
+	display: block;
+	margin: auto;
+}

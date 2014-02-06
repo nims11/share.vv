@@ -17,8 +17,9 @@
 <div class="container">
 	<h1 class="text-right">Share.vv</h1>
 	<ul class="topnav text-right">
-		<li><a id="newRoom" target="new">New Room</a></li>
-		<li><a>FAQ</a></li>
+		<li><a id="newRoom" target="_blank">New Room</a></li>
+		<li><a id="FAQLink" data-toggle="modal" data-target="#myModal">FAQ</a></li>
+		<li><a class="github" target="_blank">Github</a></li>
 	</ul>
 	<div id="uploadArea">
 		<h3>Drag and Drop files here</h3>
@@ -59,9 +60,82 @@
 		</div>
 	</div>
 </div>
+
+<!-- Modal -->
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <h4 class="modal-title" id="myModalLabel">FAQ</h4>
+      </div>
+      <div class="modal-body">
+        <h4>What is this?</h4>
+        <p>A p2p file sharing webapp which runs on your browser</p>
+
+        <h4>How to use it?</h4>
+        <p>Click on new Room, select the files you want to share, and share the link on the address bar with anyone who you want to share these files with. The other guy will open this link on his/her browser, and will see the list of files. He/She will download (<span class="glyphicon glyphicon-save active"></span>) the file, and once finished will save it (<span class="glyphicon glyphicon-floppy-save active"></span>) to disk.</p>
+
+        <h4>Whats so special about it?</h4>
+        <p>This app is based on webRTC for p2p communication between browsers. Minimal data for signalling passes through the server initially and rest is p2p, leading to higher transfer speed, lower latency and more privacy.</p>
+
+        <h4>Which browsers are supported?</h4>
+        <p>webRTC is a fairly new technology and data channels for transmitting raw data is even more immature. So the browser support is pretty varying. But if you are running latest version of your browsers (nah, not IE), it will work. Support and performance will eventually get better with higher versions.</p>
+        <table class="table table-bordered">
+		  <tr>
+		  	<th></th>
+		  	<th><img class='center' width="32" height="32" src='./img/FF.jpg' /></th>
+		  	<th><img class='center' width="32" height="32" src='./img/chrome.jpg' /></th>
+		  	<th><img class='center' width="32" height="32" src='./img/chromium.jpg' /></th>
+		  </tr>
+		  <tr>
+		  	<th><img class='center' width="32" height="32" src='./img/FF.jpg' /></th>
+		  	<td>26+ works, 23+ should work as well</td>
+		  	<td>FF 26+ with Chrome 32+, Chrome 31+ should work as well</td>
+		  	<td>Some issue with chromium 32. Works fine with chromium-dev 33+</td>
+		  </tr>
+		  <tr>
+		  	<th><img class='center' width="32" height="32" src='./img/chrome.jpg' /></th>
+		  	<td>FF 26+ with Chrome 32+, Chrome 31+ should work as well</td>
+		  	<td>31+ works, 26+ shoud work as well</td>
+		  	<td>Some issue with chromium 32. Works fine with chromium-dev 33+</td>
+		  </tr>
+		  <tr>
+		  	<th><img class='center' width="32" height="32" src='./img/chromium.jpg' /></th>
+		  	<td>Some issue with chromium 32. Works fine with chromium-dev 33+</td>
+		  	<td>Some issue with chromium 32. Works fine with chromium-dev 33+</td>
+		  	<td>31+ works, 26+ shoud work as well</td>
+		  </tr>
+		</table>
+
+		<h4>Features to implement</h4>
+		<ul>
+			<li>Stopping, pausing, resuming, restarting Downloads</li>
+			<li>Removing added files from the list</li>
+			<li>Alerts</li>
+			<li>Parallel Downloading, Serial uploading</li>
+		</ul>
+
+		<h4>More technical info?</h4>
+		<p>Visit the <a class='github'>Github Repo</a> and feel free to contribute. :-)</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script type="text/javascript">
 document.getElementById("newRoom").href = window.location.pathname;
+document.getElementById("FAQLink").href = "";
+document.getElementById("FAQLink").onclick = (function (){
+	return false;
+});
+$('.github').attr('href', 'https://github.com/nims11/share.vv');
 $(document).ready(setup);
 </script>
 </body>
 </html>
+<!--
+Dedicated to mustangvarun
+-->

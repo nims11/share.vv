@@ -5,6 +5,12 @@
                     - purging a file from memory
                     - Redownload
                     - Checksum
+                    - alerts
+                    - Room assigning from server side
+                    - parallel downloading
+                    - serial uploading
+                    - exploiting UTF-16 for tranmitting data instead of UTF-8
+                    - binary data tranfer
 
                     - Separate file transfer JS and UI JS
                     - Remove JQuery and Bootstrap. very bloat, not wow.
