@@ -21,13 +21,34 @@
     $fileLeader and $fileClient -   Template for filelist items for
                                     Room Leader and Clients, respectively.
 */
-var $uploadField, $fileList, $fileLeader, $fileClient;
+var $uploadField, $fileList, $fileLeader, $fileClient, dropZone;
 $(document).ready(function(){
     $uploadField = $(document.uploadForm.uploadField);
     $fileList = $('#fileList');
     $fileLeader = $('#templates .fileLeader');
     $fileClient = $('#templates .fileClient');
+    dropZone = document.getElementById('uploadArea');
+    dropZone.addEventListener('dragover', handleDragOver, false);
+    dropZone.addEventListener('drop', handleFileSelect, false);
 });
+
+
+// Reference: http://www.html5rocks.com/en/tutorials/file/dndfiles/ for drag and drop
+function handleFileSelect(evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
+
+    var files = evt.dataTransfer.files; // FileList object.
+    //console.log(evt.dataTransfer.files);
+    addFiles(files);
+}
+
+function handleDragOver(evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
+    evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
+}
+
 
 var socket = io.connect(window.location.hostname);
 navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
