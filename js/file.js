@@ -23,7 +23,7 @@ $(document).ready(function(){
 });
 
 
-var socket = io.connect('http://'+window.location.hostname+':8080');
+var socket = io.connect(window.location.hostname);
 navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
 var is_firefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
 
