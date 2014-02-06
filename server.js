@@ -29,19 +29,20 @@ io.sockets.on('connection', function (socket) {
     }
   });
   socket.on("createRoom", function(data) {
-  	if(!rooms[data.roomId]){
-      console.log(data.fileInfo);
-  		rooms[data.roomId] = {leader: socket.id, slaves: []};
-      leaderRoom[socket.id] = data.roomId;
-  		console.log('Room ' + data.roomId + ' created');
-  	}
+    var roomId;
+    do{
+      roomId = Math.random().toString(36).substring(2, 9);
+    }while(roomId in rooms);
+
+		rooms[roomId] = {leader: socket.id, slaves: []};
+    leaderRoom[socket.id] = roomId;
+		console.log('Room ' + roomId + ' created');
+    socket.emit('roomAssigned', {roomId: roomId});
   });
   socket.on("joinRoom", function(data) {
   	if(rooms[data.roomId]){
-  		// rooms[data.roomId].slaves.push(socket.id);
   		console.log('Joined room ' + data.roomId);
       io.sockets.socket(rooms[data.roomId].leader).emit('newSlave', {"socket": socket.id});
-      socket.emit('fileInfo', rooms[data.roomId].fileInfo);
   	}
   });
   socket.on("disconnect", function(){

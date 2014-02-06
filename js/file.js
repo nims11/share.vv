@@ -319,37 +319,6 @@ function startDownload(evt){
     processReqQueue(tryLimit);
 }
 
-
-function createRoom(){
-    roomId = "";
-    while(!roomId.length){
-        /*
-        Todo: handle roomId clash
-        */
-        roomId = Math.random().toString(36).substring(2, 7);
-    }
-    window.location.hash = roomId;
-    socket.emit('createRoom', 
-        {"roomId": roomId});
-    isLeader = true;
-}
-function joinRoom(){
-    roomId = window.location.hash.substring(1);
-    /*
-    Todo: handle invalid id
-    */
-    socket.emit('joinRoom', {"roomId": roomId});
-    isLeader = false;
-    pc = newPeer();
-    $('#alertDiv').removeClass()
-                .addClass('alert')
-                .addClass('alert-info')
-                .html('Connected to room '+roomId+
-                    '<br />Download <span class="glyphicon glyphicon-save active"></span> a file, then \
-                    Save <span class="glyphicon glyphicon-floppy-save active"></span> it.')
-                .show();
-}
-
 function sendHighPriorityMsg(data, pc){
     var dataStr = JSON.stringify(data);
     if(!pc){
@@ -446,14 +415,22 @@ function addFiles(fs){
         reader.readAsArrayBuffer(f);
     }
 }
-function setup(){
-    if(window.location.hash == ""){
-        isLeader = true;
-        createRoom();
+function createRoom(){
+    // Request room creation
+    socket.emit('createRoom', {});
+    $('#alertDiv').removeClass()
+                .addClass('alert')
+                .addClass('alert-info')
+                .html('Requesting New Room...')
+                .show();
+    // When Room assigned
+    socket.on('roomAssigned', function(data){
+        roomId = data.roomId;
         $uploadField.on('change', function(){
             var fs = $uploadField[0].files;
             addFiles(fs);
         });
+        window.location.hash = roomId;
         $('#alertDiv').removeClass()
                     .addClass('alert')
                     .addClass('alert-info')
@@ -461,6 +438,28 @@ function setup(){
                         '+window.location)
                     .show();
         processResponseQueue(tryLimit);
+    });
+}
+function joinRoom(){
+    roomId = window.location.hash.substring(1);
+    /*
+    Todo: handle invalid id
+    */
+    socket.emit('joinRoom', {"roomId": roomId});
+    isLeader = false;
+    pc = newPeer();
+    $('#alertDiv').removeClass()
+                .addClass('alert')
+                .addClass('alert-info')
+                .html('Connected to room '+roomId+
+                    '<br />Download <span class="glyphicon glyphicon-save active"></span> a file, then \
+                    Save <span class="glyphicon glyphicon-floppy-save active"></span> it.')
+                .show();
+}
+function setup(){
+    if(window.location.hash == ""){
+        isLeader = true;
+        createRoom();
     }else {
         $("#uploadArea").hide();
         joinRoom();
