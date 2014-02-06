@@ -11,6 +11,7 @@
                     - serial uploading
                     - exploiting UTF-16 for tranmitting data instead of UTF-8
                     - binary data tranfer
+                    - drag and drop
 
                     - Separate file transfer JS and UI JS
                     - Remove JQuery and Bootstrap. very bloat, not wow.
