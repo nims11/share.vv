@@ -11,6 +11,5 @@ webRTC file sharing
 # npm install connect
 # npm install socket.io
 # node server.js
-
 ```
 Now open up `localhost:8000/file.html` to test if working.
