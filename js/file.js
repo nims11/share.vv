@@ -21,6 +21,8 @@
     $fileLeader and $fileClient -   Template for filelist items for
                                     Room Leader and Clients, respectively.
 */
+
+// General Purpose Code
 var $uploadField, $fileList, $fileLeader, $fileClient;
 $(document).ready(function(){
     $uploadField = $(document.uploadForm.uploadField);
@@ -28,7 +30,6 @@ $(document).ready(function(){
     $fileLeader = $('#templates .fileLeader');
     $fileClient = $('#templates .fileClient');
 });
-
 
 var socket = io.connect(window.location.hostname);
 navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
@@ -38,7 +39,7 @@ var pc; // Used if the client isn't an initiator
 var peers = {}; //  Used to store clients connecting to the initator
 var isLeader;   // If the client is the initiator
 var roomId;
-var files = {}; // List of files. Complete in case of Room leader
+var files = {}; // List of files. file name, size, id, and actual data
 var fileIds = 0;    // Fileid count
 
 //Need to thoroughly test delay and tries mechanism.
@@ -132,10 +133,12 @@ function newPeer(sock){   // Arguments applicable only for the leader
                 if(data.type == 'reqChunk')
                     handleRequest(data, pc);
             }else{
-                if(data.type == 'newFile')
-                    addFileToList(data);
-                else if(data.type == 'responseChunk')
+                if(data.type == 'responseChunk')
                     handleResponse(data);
+                else if(data.type == 'newFile')
+                    addFileToList(data);
+                else if(data.type == 'removeFile')
+                    removeFileFromList(data.fileId);
             }
         };
     }
@@ -150,6 +153,7 @@ function newPeer(sock){   // Arguments applicable only for the leader
     return pc;
 }
 
+// Returns a function object to be invoked with arg
 function getFunc(func, arg){
     return function(){
         func(arg);
@@ -282,7 +286,6 @@ function updateProgress($target){
     intervalId = setInterval(update, 500);
 }
 function startDownload(evt){
-    // console.log('Starting Download');
     $target = $(evt.target).closest('.row');
     fileId = $target.data('fileId');
     var file = files[fileId];
@@ -379,6 +382,7 @@ function addFileToList(data){
     $newFileDiv.data('fileId', data.fileId);
     $newFileDiv.children('.fileName').text(data.name);
     $newFileDiv.children('.fileSize').text(getSuitableSizeUnit(data.size));
+    $newFileDiv.attr('id', 'file'+data.fileId);
 
     // Enable Download Button
     $downBut = $newFileDiv.find('.glyphicon-save');
@@ -388,7 +392,9 @@ function addFileToList(data){
 
         $target = $(evt.target).parent().parent();
         disableAction($target.find('.glyphicon-save'));
-        enableAction($target.find('.glyphicon-stop'));
+        enableAction($target.find('.glyphicon-stop'), function(){
+            return false;
+        });
 
         startDownload(evt);
         return false;
@@ -401,6 +407,11 @@ function addFileToList(data){
         totChunk: noOfChunks(data.size, pc.chunkSize),
         completed: 0
     };
+}
+
+function removeFileFromList(fileId){
+    $('#file'+fileId).remove();
+    delete files[fileId];
 }
 function getSuitableSizeUnit(bytes){
     if(bytes<1000){
@@ -420,6 +431,17 @@ function getSuitableSizeUnit(bytes){
     }
     return "???B";
 }
+
+function removeFile(evt){
+    $target = $(evt.target).closest('.row');
+    fileId = $target.data('fileId');
+    sendHighPriorityMsg({type: 'removeFile', fileId: fileId});
+    $target.remove();
+    delete files[fileId];
+    return false;
+}
+
+// Add files for upload to list
 function addFiles(fs){
     for(var i = 0; i < fs.length; i++){
         var f = fs[i];
@@ -432,6 +454,7 @@ function addFiles(fs){
                 $newFileDiv.data('fileId', fileIds);
                 $newFileDiv.children('.fileName').text(f.name);
                 $newFileDiv.children('.fileSize').text(getSuitableSizeUnit(f.size));
+                enableAction($newFileDiv.find('.glyphicon-remove'), removeFile);
 
                 $fileList.append($newFileDiv);
 
