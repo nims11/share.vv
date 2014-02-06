@@ -1,14 +1,13 @@
 /*
     Things to implement 
-                    - Stopping download
-                    - Removing a file from list
-                    - purging a file from memory
-                    - Redownload
+                    - Redesign Queues
+                        - Stopping download
+                        - Removing a file from list
+                        - Redownload
+                        - parallel downloading
+                        - serial uploading
                     - Checksum
-                    - alerts
                     - Room assigning from server side
-                    - parallel downloading
-                    - serial uploading
                     - exploiting UTF-16 for tranmitting data instead of UTF-8
                     - binary data tranfer
                     - drag and drop
@@ -17,12 +16,12 @@
                     - Remove JQuery and Bootstrap. very bloat, not wow.
 */
 
+
+// General Purpose Code
 /*
     $fileLeader and $fileClient -   Template for filelist items for
                                     Room Leader and Clients, respectively.
 */
-
-// General Purpose Code
 var $uploadField, $fileList, $fileLeader, $fileClient;
 $(document).ready(function(){
     $uploadField = $(document.uploadForm.uploadField);
@@ -65,6 +64,36 @@ function decDelay(){
     }
 }
 
+function getSuitableSizeUnit(bytes){
+    if(bytes<1000){
+        return bytes+"B";
+    }
+    bytes /= 1000;
+    if(bytes<1000){
+        return (+bytes.toFixed(1))+"KB";
+    }
+    bytes /= 1000;
+    if(bytes<1000){
+        return (+bytes.toFixed(1))+"MB";
+    }
+    bytes /= 1000;
+    if(bytes<1000){
+        return (+bytes.toFixed(1))+"GB";
+    }
+    return "???B";
+}
+
+// Returns a function object to be invoked with arg
+function getFunc(func, arg){
+    return function(){
+        func(arg);
+    }
+}
+
+function noOfChunks(size, chunkSize){
+    return Math.ceil(size/chunkSize);
+}
+
 function newPeer(sock){   // Arguments applicable only for the leader
     var pc = new RTCPeerConnection(pc_config, {optional: [{DtlsSrtpKeyAgreement:true}]});
     var pc_config = {"iceServers": [{"url": "stun:stun.l.google.com:19302"}]};
@@ -86,9 +115,15 @@ function newPeer(sock){   // Arguments applicable only for the leader
         if(pc.iceConnectionState == 'disconnected' || pc.iceConnectionState == 'closed'){
             if(isLeader){
                 delete peers[pc.socket];
-                console.log('A user has left')
+                console.log('A user has left');
             }else{
-                console.log('Lost Connection to the leader')
+                console.log('Lost Connection to the leader');
+                $('#alertDiv').removeClass()
+                            .addClass('alert')
+                            .addClass('alert-danger')
+                            .text('Lost connection to Room Leader! Maybe the leader closed the tab or some network problem on either side.')
+                            .show();
+                $('.glyphicon:not(.glyphicon-floppy-save)').removeClass('active');
             }
         }
     }
@@ -113,22 +148,20 @@ function newPeer(sock){   // Arguments applicable only for the leader
     function setupChannel(channel){
         var x = 0;
         channel.onmessage = function(event){
-            // if(!isLeader)
-            //     console.log(event.data.length);
             var endmarkerStr = '"endmarker":1}';
             var endmarker = event.data.indexOf(endmarkerStr);
             var data;
-            if(endmarker != -1){
+            if(endmarker != -1){    // If end marker detected
                 var JSONData = event.data.substr(0, endmarkerStr.length+endmarker);
-                try{
+                try{    // Try to go with the meaning
                     data = JSON.parse(JSONData);
                     data.fileChunk = event.data.substr(JSONData.length);
-                }catch(e){
+                }catch(e){  // Else assume a normal JSON
                     data = JSON.parse(event.data);
                 }
-            }
-            else
+            } else  // Normal JSON
                 data = JSON.parse(event.data);
+
             if(isLeader){
                 if(data.type == 'reqChunk')
                     handleRequest(data, pc);
@@ -136,9 +169,9 @@ function newPeer(sock){   // Arguments applicable only for the leader
                 if(data.type == 'responseChunk')
                     handleResponse(data);
                 else if(data.type == 'newFile')
-                    addFileToList(data);
+                    addFile(data);
                 else if(data.type == 'removeFile')
-                    removeFileFromList(data.fileId);
+                    removeFile(data.fileId);
             }
         };
     }
@@ -151,17 +184,6 @@ function newPeer(sock){   // Arguments applicable only for the leader
         return 5000;
     }
     return pc;
-}
-
-// Returns a function object to be invoked with arg
-function getFunc(func, arg){
-    return function(){
-        func(arg);
-    }
-}
-
-function noOfChunks(size, chunkSize){
-    return Math.ceil(size/chunkSize);
 }
 
 // When the leader receives a request, add it to the response queue
@@ -297,37 +319,6 @@ function startDownload(evt){
     processReqQueue(tryLimit);
 }
 
-socket.on('ice', function(signal) {
-    if(isLeader && (!signal.socket || !peers[signal.socket]))
-        return;
-    if(!isLeader && !pc)
-        pc = newPeer();
-    if(signal.candidate == null) {return;}
-
-    if(isLeader)
-        peers[signal.socket].addIceCandidate(new RTCIceCandidate(signal.candidate));
-    else
-        pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-});
-socket.on('sdp', function(signal) {
-    if(isLeader && (!signal.socket || !peers[signal.socket]))
-        return;
-    if(!isLeader && !pc)
-        pc = newPeer();
-
-    if(!isLeader)
-        pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-    else
-        peers[signal.socket].setRemoteDescription(new RTCSessionDescription(signal.sdp));
-    if(!isLeader)
-        pc.answer();
-});
-socket.on('newSlave', function(data) {
-    console.log('new slave');
-    peers[data.socket] = newPeer(data.socket, data.nick);
-    peers[data.socket].offer();
-});
-
 
 function createRoom(){
     roomId = "";
@@ -350,6 +341,13 @@ function joinRoom(){
     socket.emit('joinRoom', {"roomId": roomId});
     isLeader = false;
     pc = newPeer();
+    $('#alertDiv').removeClass()
+                .addClass('alert')
+                .addClass('alert-info')
+                .html('Connected to room '+roomId+
+                    '<br />Download <span class="glyphicon glyphicon-save active"></span> a file, then \
+                    Save <span class="glyphicon glyphicon-floppy-save active"></span> it.')
+                .show();
 }
 
 function sendHighPriorityMsg(data, pc){
@@ -377,7 +375,7 @@ function enableAction($target, func){
     $target.parent().on('click', func);
     $target.parent().attr('href', '');
 }
-function addFileToList(data){
+function addFile(data){
     $newFileDiv = $fileClient.clone();
     $newFileDiv.data('fileId', data.fileId);
     $newFileDiv.children('.fileName').text(data.name);
@@ -408,38 +406,18 @@ function addFileToList(data){
         completed: 0
     };
 }
-
-function removeFileFromList(fileId){
+function getIdFromDOMObj(obj){
+    return $(obj).closest('.row').data('fileId');
+}
+function removeFile(fileId){
     $('#file'+fileId).remove();
     delete files[fileId];
-}
-function getSuitableSizeUnit(bytes){
-    if(bytes<1000){
-        return bytes+"B";
+    if(isLeader){
+        sendHighPriorityMsg({type: 'removeFile', fileId: fileId});
     }
-    bytes /= 1000;
-    if(bytes<1000){
-        return (+bytes.toFixed(1))+"KB";
-    }
-    bytes /= 1000;
-    if(bytes<1000){
-        return (+bytes.toFixed(1))+"MB";
-    }
-    bytes /= 1000;
-    if(bytes<1000){
-        return (+bytes.toFixed(1))+"GB";
-    }
-    return "???B";
-}
-
-function removeFile(evt){
-    $target = $(evt.target).closest('.row');
-    fileId = $target.data('fileId');
-    sendHighPriorityMsg({type: 'removeFile', fileId: fileId});
-    $target.remove();
-    delete files[fileId];
     return false;
 }
+
 
 // Add files for upload to list
 function addFiles(fs){
@@ -452,9 +430,12 @@ function addFiles(fs){
 
                 $newFileDiv = $fileLeader.clone();
                 $newFileDiv.data('fileId', fileIds);
+                $newFileDiv.attr('id', 'file'+fileIds);
                 $newFileDiv.children('.fileName').text(f.name);
                 $newFileDiv.children('.fileSize').text(getSuitableSizeUnit(f.size));
-                enableAction($newFileDiv.find('.glyphicon-remove'), removeFile);
+                /*enableAction($newFileDiv.find('.glyphicon-remove'), function(evt){
+                    return removeFile(getIdFromDOMObj(evt.target));
+                });*/
 
                 $fileList.append($newFileDiv);
 
@@ -473,9 +454,48 @@ function setup(){
             var fs = $uploadField[0].files;
             addFiles(fs);
         });
+        $('#alertDiv').removeClass()
+                    .addClass('alert')
+                    .addClass('alert-info')
+                    .html('Users may join your room and download the shared files by visiting <br /> \
+                        '+window.location)
+                    .show();
         processResponseQueue(tryLimit);
     }else {
         $("#uploadArea").hide();
         joinRoom();
     }
 }
+
+
+// Signalling methods
+socket.on('ice', function(signal) {
+    if(isLeader && (!signal.socket || !peers[signal.socket]))
+        return;
+    if(!isLeader && !pc)
+        pc = newPeer();
+    if(signal.candidate == null) {return;}
+
+    if(isLeader)
+        peers[signal.socket].addIceCandidate(new RTCIceCandidate(signal.candidate));
+    else
+        pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+});
+socket.on('sdp', function(signal) {
+    if(isLeader && (!signal.socket || !peers[signal.socket]))
+        return;
+    if(!isLeader && !pc)
+        pc = newPeer();
+
+    if(!isLeader)
+        pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+    else
+        peers[signal.socket].setRemoteDescription(new RTCSessionDescription(signal.sdp));
+    if(!isLeader)
+        pc.answer();
+});
+socket.on('newSlave', function(data) {
+    console.log('new slave');
+    peers[data.socket] = newPeer(data.socket, data.nick);
+    peers[data.socket].offer();
+});
