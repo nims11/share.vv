@@ -7,7 +7,6 @@
                         - parallel downloading
                         - serial uploading
                     - Checksum
-                    - Room assigning from server side
                     - exploiting UTF-16 for tranmitting data instead of UTF-8
                     - binary data tranfer
                     - drag and drop
@@ -139,6 +138,13 @@ function newPeer(sock){   // Arguments applicable only for the leader
     } else{ // Else wait for a channel from the initiator
         pc.ondatachannel = function(event) {
             console.log('connected channel');
+            $('#alertDiv').removeClass()
+                        .addClass('alert')
+                        .addClass('alert-info')
+                        .html('Connected to room '+roomId+
+                            '<br />Download <span class="glyphicon glyphicon-save active"></span> a file, then \
+                            Save <span class="glyphicon glyphicon-floppy-save active"></span> it.')
+                        .show();
             pc.channel = event.channel;
             setupChannel(pc.channel);
             pc.oniceconnectionstatechange = handleDisconnect;
@@ -148,6 +154,7 @@ function newPeer(sock){   // Arguments applicable only for the leader
     function setupChannel(channel){
         var x = 0;
         channel.onmessage = function(event){
+            console.log(event.data);
             var endmarkerStr = '"endmarker":1}';
             var endmarker = event.data.indexOf(endmarkerStr);
             var data;
@@ -442,18 +449,14 @@ function createRoom(){
 }
 function joinRoom(){
     roomId = window.location.hash.substring(1);
-    /*
-    Todo: handle invalid id
-    */
     socket.emit('joinRoom', {"roomId": roomId});
     isLeader = false;
     pc = newPeer();
     $('#alertDiv').removeClass()
                 .addClass('alert')
                 .addClass('alert-info')
-                .html('Connected to room '+roomId+
-                    '<br />Download <span class="glyphicon glyphicon-save active"></span> a file, then \
-                    Save <span class="glyphicon glyphicon-floppy-save active"></span> it.')
+                .html('Requesting Connection to room ' + roomId
+                    +'<br />If stuck too long, most probably the wrong room id or signal server problems.')
                 .show();
 }
 function setup(){
@@ -469,6 +472,12 @@ function setup(){
 
 // Signalling methods
 socket.on('ice', function(signal) {
+    $('#alertDiv').removeClass()
+                .addClass('alert')
+                .addClass('alert-info')
+                .html('Establishing Connection to Room Leader...<br />\
+                    May get stuck on this if the browsers are not compatible, see FAQ for more details.')
+                .show();
     if(isLeader && (!signal.socket || !peers[signal.socket]))
         return;
     if(!isLeader && !pc)
