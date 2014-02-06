@@ -1,6 +1,10 @@
-var connect = require('connect');
-var app = connect.createServer(connect.static(__dirname)).listen(8000);
-var io = require('socket.io').listen(app, {log: false});
+// var express = require('express');
+// var http  = require('http');
+
+// var app = express();
+// var server = http.createServer(app);
+var io = require('socket.io').listen(8000, {log: false});
+// server.listen(8000);
 var rooms = {};
 var leaderRoom = {};
 io.sockets.on('connection', function (socket) {

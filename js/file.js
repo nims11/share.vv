@@ -86,7 +86,7 @@ function decDelay(){
 
 function getSuitableSizeUnit(bytes){
     if(bytes<1000){
-        return bytes+"B";
+        return (+bytes.toFixed(1))+"B";
     }
     bytes /= 1000;
     if(bytes<1000){
