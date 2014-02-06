@@ -13,4 +13,4 @@ webRTC file sharing
 # node server.js
 
 ```
-Now open up localhost:8000/file.html to test if working.
+Now open up `localhost:8000/file.html` to test if working.
