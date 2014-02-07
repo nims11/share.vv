@@ -16,4 +16,4 @@ A HTTP server having access to share.vv is required. Simplest would be to run in
 # python -m SimpleHTTPServer
 ```
 
-Now open up `localhost:8000/file.html` to test if working.
+Now open up `localhost:8000` to test if working.
