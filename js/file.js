@@ -49,8 +49,7 @@ function handleDragOver(evt) {
     evt.dataTransfer.dropEffect = 'copy'; // Explicitly show this is a copy.
 }
 
-
-var socket = io.connect(window.location.hostname);
+var socket = io.connect(window.location.hostname+':5000');
 navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
 var is_firefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
 
@@ -175,7 +174,6 @@ function newPeer(sock){   // Arguments applicable only for the leader
     function setupChannel(channel){
         var x = 0;
         channel.onmessage = function(event){
-            console.log(event.data);
             var endmarkerStr = '"endmarker":1}';
             var endmarker = event.data.indexOf(endmarkerStr);
             var data;
@@ -493,6 +491,7 @@ function setup(){
 
 // Signalling methods
 socket.on('ice', function(signal) {
+    if(!isLeader)
     $('#alertDiv').removeClass()
                 .addClass('alert')
                 .addClass('alert-info')

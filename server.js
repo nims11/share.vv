@@ -1,10 +1,4 @@
-// var express = require('express');
-// var http  = require('http');
-
-// var app = express();
-// var server = http.createServer(app);
-var io = require('socket.io').listen(8000, {log: false});
-// server.listen(8000);
+var io = require('socket.io').listen(5000, {log: false});
 var rooms = {};
 var leaderRoom = {};
 io.sockets.on('connection', function (socket) {
