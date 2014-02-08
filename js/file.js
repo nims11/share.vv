@@ -10,6 +10,7 @@
                     - Checksum
                     - exploiting UTF-16 for transmitting data instead of UTF-8
                         - binary data tranfer
+                    - Error for big files
 
                     - Separate file transfer JS and UI JS
                     - Remove JQuery and Bootstrap. very bloat, not wow.
@@ -66,6 +67,8 @@ var minDelay = 5;
 var maxDelay = 1000;
 var tryLimit = 15;  // Max number of attempts before failing
 
+var chunkSize = getChunkSize();
+
 
 // {fileId: ..., chunkId: ...}
 var reqQueue = [];
@@ -107,6 +110,10 @@ function getFunc(func, arg){
     return function(){
         func(arg);
     }
+}
+
+function getChunkSize(){
+    return 5000;
 }
 
 function noOfChunks(size, chunkSize){
@@ -206,9 +213,6 @@ function newPeer(sock){   // Arguments applicable only for the leader
         socket.emit('sdp', { "sdp": desc , "roomId": roomId, "socket": pc.socket});
     }
     pc.chunkSize = getChunkSize();
-    function getChunkSize(){
-        return 5000;
-    }
     return pc;
 }
 
@@ -274,10 +278,8 @@ function processResponseQueue(tries){
             try{
                 var res = responseQueue[0];
                 var pc = peers[res.peerId];
-                var chunkSize = pc.chunkSize;
                 var chunkId = res.chunkId;
-                var fileChunk = files[res.fileId].arraybuf.slice(chunkId*chunkSize, (chunkId+1)*chunkSize);
-                var fileChunkStr = String.fromCharCode.apply(null, new Uint8Array(fileChunk));
+                var fileChunkStr = (files[res.fileId].fileChunkStrs[chunkId]||"");
 
                 var data = {type: 'responseChunk', fileId: res.fileId, chunkId: chunkId, endmarker:1};
                 pc.channel.send(JSON.stringify(data)+fileChunkStr);
@@ -349,7 +351,9 @@ function sendHighPriorityMsg(data, pc){
     var dataStr = JSON.stringify(data);
     if(!pc){
         for(id in peers){
-            peers[id].channel.send(dataStr);
+            try{
+                peers[id].channel.send(dataStr);
+            }catch(e){}
         }
     }else
         pc.channel.send(dataStr);
@@ -422,16 +426,26 @@ function addFiles(fs){
         var reader = new FileReader();
         reader.onload = (function(f){
             return function(e){
-                files[fileIds] = {file: f, arraybuf: e.target.result};
+                var file = {file: f, arraybuf: e.target.result, totalChunks: noOfChunks(f.size, chunkSize), fileChunkStrs: []};
 
                 $newFileDiv = $fileLeader.clone();
                 $newFileDiv.data('fileId', fileIds);
                 $newFileDiv.attr('id', 'file'+fileIds);
                 $newFileDiv.children('.fileName').text(f.name);
                 $newFileDiv.children('.fileSize').text(getSuitableSizeUnit(f.size));
+                disableAction($newFileDiv.find('.glyphicon-remove'));
                 /*enableAction($newFileDiv.find('.glyphicon-remove'), function(evt){
                     return removeFile(getIdFromDOMObj(evt.target));
                 });*/
+
+                // Construct File Chunk Strings
+                for(var i = 0, len = file.totalChunks; i<len;i++){
+                    var fileChunk = file.arraybuf.slice(i*chunkSize, (i+1)*chunkSize);
+                    var fileChunkStr = String.fromCharCode.apply(null, new Uint8Array(fileChunk));
+                    file.fileChunkStrs[i] = fileChunkStr;
+                }
+
+                files[fileIds] = file;
 
                 $fileList.append($newFileDiv);
 
@@ -492,7 +506,7 @@ function setup(){
 
 // Signalling methods
 socket.on('ice', function(signal) {
-    if(!isLeader)
+    if(!isLeader && (!pc.channel || pc.channel.readyState != 'open'))
     $('#alertDiv').removeClass()
                 .addClass('alert')
                 .addClass('alert-info')
