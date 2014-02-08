@@ -113,7 +113,7 @@ function getFunc(func, arg){
 }
 
 function getChunkSize(){
-    return 5000;
+    return 10000;
 }
 
 function noOfChunks(size, chunkSize){
@@ -165,6 +165,7 @@ function newPeer(sock){   // Arguments applicable only for the leader
     } else{ // Else wait for a channel from the initiator
         pc.ondatachannel = function(event) {
             console.log('connected channel');
+
             $('#alertDiv').removeClass()
                         .addClass('alert')
                         .addClass('alert-info')
@@ -172,6 +173,7 @@ function newPeer(sock){   // Arguments applicable only for the leader
                             '<br />Download <span class="glyphicon glyphicon-save active"></span> a file, then \
                             Save <span class="glyphicon glyphicon-floppy-save active"></span> it.')
                         .show();
+
             pc.channel = event.channel;
             setupChannel(pc.channel);
             pc.oniceconnectionstatechange = handleDisconnect;
@@ -196,15 +198,15 @@ function newPeer(sock){   // Arguments applicable only for the leader
                 data = JSON.parse(event.data);
 
             if(isLeader){
-                if(data.type == 'reqChunk')
+                if(data.type == 'reqChunk') // Someone requested a chunk
                     handleRequest(data, pc);
             }else{
-                if(data.type == 'responseChunk')
+                if(data.type == 'responseChunk')    // We got a response
                     handleResponse(data);
                 else if(data.type == 'newFile')
                     addFile(data);
-                else if(data.type == 'removeFile')
-                    removeFile(data.fileId);
+                // else if(data.type == 'removeFile')
+                //     removeFile(data.fileId);
             }
         };
     }
@@ -222,16 +224,15 @@ function handleRequest(request, pc){
     if(!file || 
         file.totChunk <= request.chunkId ||
         request.chunkId < 0
-        )
-        return false;
-    responseQueue.push({fileId: request.fileId, chunkId: request.chunkId, peerId: pc.socket});
+    )return false;
 
+    responseQueue.push({fileId: request.fileId, chunkId: request.chunkId, peerId: pc.socket});
     // Start processing the response queue if it was already empty
     if(responseQueue.length == 1)
         processResponseQueue();
 }
 function handleResponse(response){
-    if(reqQueue.length == 0 || reqQueue[0].chunkId != response.chunkId || reqQueue[0].fileId != response.fileId)
+    if(!reqQueue.length || reqQueue[0].chunkId != response.chunkId || reqQueue[0].fileId != response.fileId)
         return false;
     var file = files[response.fileId];
     file.arraybuf[response.chunkId] = new ArrayBuffer(response.fileChunk.length);
@@ -498,7 +499,7 @@ function setup(){
         isLeader = true;
         createRoom();
     }else {
-        $("#uploadArea").hide();
+        $("#uploadArea").remove();
         joinRoom();
     }
 }
