@@ -6,9 +6,10 @@
                         - Redownload
                         - parallel downloading
                         - serial uploading
+                    - Worker Threads for processing responses
                     - Checksum
-                    - exploiting UTF-16 for tranmitting data instead of UTF-8
-                    - binary data tranfer
+                    - exploiting UTF-16 for transmitting data instead of UTF-8
+                        - binary data tranfer
 
                     - Separate file transfer JS and UI JS
                     - Remove JQuery and Bootstrap. very bloat, not wow.
@@ -394,9 +395,10 @@ function addFile(data){
 
     $fileList.append($newFileDiv);
     delete data['type'];
+    var totChunks = noOfChunks(data.size, pc.chunkSize);
     files[data.fileId] = {file: data, 
-        arraybuf: new Array(noOfChunks(data.size, pc.chunkSize)), 
-        totChunk: noOfChunks(data.size, pc.chunkSize),
+        arraybuf: new Array(totChunks), 
+        totChunk: totChunks,
         completed: 0
     };
 }
