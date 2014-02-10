@@ -4,9 +4,10 @@
                         - Stopping download
                         - Removing a file from list
                         - Redownload
-                        - parallel downloading
+                        - limit queue length
                         - serial uploading
                     - Worker Threads for processing responses
+                    - Download all
                     - Checksum
                     - exploiting UTF-16 for transmitting data instead of UTF-8
                         - binary data tranfer
@@ -72,8 +73,16 @@ var chunkSize = getChunkSize();
 
 // {fileId: ..., chunkId: ...}
 var reqQueue = [];
+var isReqQueueProcess = false;
 // {fileId: ..., chunkId: ..., peerId}
 var responseQueue = [];
+// fileId queue
+var jobQueue = [];
+var jobQueueLength = 0;
+var jobPtr = 0;
+var jobPtrDir = 1;
+var reqBuff;
+
 
 //Delay Mechanism for increasing and decreasing delay
 function incDelay(){
@@ -113,7 +122,7 @@ function getFunc(func, arg){
 }
 
 function getChunkSize(){
-    return 10000;
+    return 12000;
 }
 
 function noOfChunks(size, chunkSize){
@@ -232,27 +241,52 @@ function handleRequest(request, pc){
         processResponseQueue();
 }
 function handleResponse(response){
-    if(!reqQueue.length || reqQueue[0].chunkId != response.chunkId || reqQueue[0].fileId != response.fileId)
+    // if(!reqQueue.length || reqQueue[0].chunkId != response.chunkId || reqQueue[0].fileId != response.fileId)
+    //     return false;
+    if(!reqBuff || reqBuff.chunkId != response.chunkId || reqBuff.fileId != response.fileId)
         return false;
     var file = files[response.fileId];
     file.arraybuf[response.chunkId] = new ArrayBuffer(response.fileChunk.length);
     var bufView = new Uint8Array(file.arraybuf[response.chunkId]);
     for(var i = 0;i<response.fileChunk.length;i++)
         bufView[i] = response.fileChunk.charCodeAt(i);
-    reqQueue.shift();
+    // reqQueue.shift();
     file.completed++;
-    processReqQueue();
+    if(file.completed == file.totChunk){
+        file.status = "completed";
+        file.endTime = new Date().getTime();
+    }
+    processJobQueue();
 }
-function processReqQueue(tries){
-    if(typeof(tries)==='undefined')
-        tries = tryLimit;
-    if(reqQueue.length == 0)
-        return true;
+function processJobQueue(){
+
+    if(files[jobQueue[jobPtr]].status == "completed"){
+        jobQueue.splice(jobPtr, 1);
+        jobQueueLength--;
+        jobPtr--;
+        if(jobQueueLength == 0){
+            jobPtr = 0;
+            return;
+        }
+    }
+    jobPtr++;
+    if(jobPtr >= jobQueueLength)
+        jobPtr = 0;
+    // reqQueue.push({fileId: jobQueue[jobPtr],
+    //     chunkId: files[jobQueue[jobPtr]].completed,
+    // });
+    reqBuff = {fileId: jobQueue[jobPtr],
+        chunkId: files[jobQueue[jobPtr]].completed,
+    };
+    processReq();
+}
+function processReq(tries){
+    tries = tries || tryLimit;
     if(!tries){
         console.log('Stalling Download, failed');
         return false;
     }
-    var req = reqQueue[0];
+    var req = reqBuff;
     try{
         var data = {type: 'reqChunk', fileId: req.fileId, chunkId: req.chunkId};
         pc.channel.send(JSON.stringify(data));
@@ -261,9 +295,29 @@ function processReqQueue(tries){
         console.log(e);
         console.log('Failed sending, queued for resending');
         incDelay();
-        setTimeout(getFunc(processReqQueue, tries-1), delay);
+        setTimeout(getFunc(processReq, tries-1), delay);
     }
 }
+// function processReqQueue(tries){
+//     tries = tries || tryLimit;
+//     // if(reqQueue.length == 0)
+//     //     return true;
+//     if(!tries){
+//         console.log('Stalling Download, failed');
+//         return false;
+//     }
+//     var req = reqQueue[0];
+//     try{
+//         var data = {type: 'reqChunk', fileId: req.fileId, chunkId: req.chunkId};
+//         pc.channel.send(JSON.stringify(data));
+//         decDelay();
+//     }catch(e){
+//         console.log(e);
+//         console.log('Failed sending, queued for resending');
+//         incDelay();
+//         setTimeout(getFunc(processReqQueue, tries-1), delay);
+//     }
+// }
 function processResponseQueue(tries){
     if(typeof(tries)==='undefined')
         tries = tryLimit;
@@ -307,19 +361,19 @@ function updateProgress($target){
     var file = files[fileId];
     var $progressBar = $target.find('.progress-bar');
     var $progressText = $target.find('.progressText');
-    var startTime = new Date().getTime();
     function update(){
         var progress = +(file.completed/file.totChunk*100).toFixed(1);
         $progressBar.css('width', progress+'%');
         $progressBar.attr('aria-valuenow', progress);
         $progressText.text(progress+"%");
 
-        if(file.completed == file.totChunk){
+        if(file.completed == file.totChunk){    // File Downloaded
             clearInterval(intervalId);
+            files[fileId].status = "completed";
 
             // Will give really low value for small files due to the 500 ms offset at which it runs
             // need to shift it to other function
-            var timeElapsed = (new Date().getTime() - startTime)/1000;
+            var timeElapsed = (file.endTime - file.startTime)/1000;
             var bytesPerSec = file.file.size/timeElapsed;
             $progressText.text('Completed in ' + (+timeElapsed.toFixed(1)) + 's ('+getSuitableSizeUnit(bytesPerSec)+'ps)');
 
@@ -339,15 +393,18 @@ function updateProgress($target){
 function startDownload(evt){
     $target = $(evt.target).closest('.row');
     fileId = $target.data('fileId');
-    var file = files[fileId];
-    var chunks = file.totChunk;
-    for(var i = 0;i<chunks;i++)
-        reqQueue.push({fileId: fileId, chunkId: i});
+    files[fileId].status = "downloading";
+    files[fileId].startTime = new Date().getTime();
+    jobQueue.push(fileId);
+    jobQueueLength++;
 
     updateProgress($target);
-    processReqQueue(tryLimit);
+    if(jobQueue.length == 1){   // If job queue newly filled
+        processJobQueue();
+    }
 }
 
+//  Not fully functional right now
 function sendHighPriorityMsg(data, pc){
     var dataStr = JSON.stringify(data);
     if(!pc){
@@ -404,7 +461,8 @@ function addFile(data){
     files[data.fileId] = {file: data, 
         arraybuf: new Array(totChunks), 
         totChunk: totChunks,
-        completed: 0
+        completed: 0,
+        status: "ready",
     };
 }
 function getIdFromDOMObj(obj){
