@@ -59,7 +59,7 @@ var pc; // Used if the client isn't an initiator
 var peers = {}; //  Used to store clients connecting to the initator
 var isLeader;   // If the client is the initiator
 var roomId;
-var files = {}; // List of files. file name, size, id, and actual data
+var files = []; // List of files. file name, size, id, and actual data
 var fileIds = 0;    // Fileid count
 
 //Need to thoroughly test delay and tries mechanism.
@@ -235,10 +235,11 @@ function handleRequest(request, pc){
         request.chunkId < 0
     )return false;
 
-    responseQueue.push({fileId: request.fileId, chunkId: request.chunkId, peerId: pc.socket});
-    // Start processing the response queue if it was already empty
-    if(responseQueue.length == 1)
-        processResponseQueue();
+    // responseQueue.push({fileId: request.fileId, chunkId: request.chunkId, peerId: pc.socket});
+    // // Start processing the response queue if it was already empty
+    // if(responseQueue.length == 1)
+    //     processResponseQueue();
+    processResponse({fileId: request.fileId, chunkId: request.chunkId, peerId: pc.socket});
 }
 function handleResponse(response){
     // if(!reqQueue.length || reqQueue[0].chunkId != response.chunkId || reqQueue[0].fileId != response.fileId)
@@ -246,21 +247,22 @@ function handleResponse(response){
     if(!reqBuff || reqBuff.chunkId != response.chunkId || reqBuff.fileId != response.fileId)
         return false;
     var file = files[response.fileId];
-    file.arraybuf[response.chunkId] = new ArrayBuffer(response.fileChunk.length);
-    var bufView = new Uint8Array(file.arraybuf[response.chunkId]);
-    for(var i = 0;i<response.fileChunk.length;i++)
-        bufView[i] = response.fileChunk.charCodeAt(i);
-    // reqQueue.shift();
     file.completed++;
     if(file.completed == file.totChunk){
         file.status = "completed";
         file.endTime = new Date().getTime();
     }
+
     processJobQueue();
+    file.arraybuf[response.chunkId] = new ArrayBuffer(response.fileChunk.length);
+    var bufView = new Uint8Array(file.arraybuf[response.chunkId]);
+    for(var i = 0;i<response.fileChunk.length;i++)
+        bufView[i] = response.fileChunk.charCodeAt(i);
+    // reqQueue.shift();
 }
 function processJobQueue(){
 
-    if(files[jobQueue[jobPtr]].status == "completed"){
+    if(files[jobQueue[jobPtr]].status != "downloading"){
         jobQueue.splice(jobPtr, 1);
         jobQueueLength--;
         jobPtr--;
@@ -282,11 +284,12 @@ function processJobQueue(){
 }
 function processReq(tries){
     tries = tries || tryLimit;
+    var req = reqBuff;
     if(!tries){
+        files[req.fileId].status = "Failed";
         console.log('Stalling Download, failed');
         return false;
     }
-    var req = reqBuff;
     try{
         var data = {type: 'reqChunk', fileId: req.fileId, chunkId: req.chunkId};
         pc.channel.send(JSON.stringify(data));
@@ -318,42 +321,70 @@ function processReq(tries){
 //         setTimeout(getFunc(processReqQueue, tries-1), delay);
 //     }
 // }
-function processResponseQueue(tries){
-    if(typeof(tries)==='undefined')
-        tries = tryLimit;
+// function processResponseQueue(tries){
+//     tries = tries || tryLimit;
 
-    // If the request is invalid due the peer no longer existing, remove it
-    while(responseQueue.length > 0 && !peers[responseQueue[0].peerId])
-        responseQueue.shift();
-    if(responseQueue.length != 0){
-        if(!tries){
-            console.log('Discarding Chunk: ', responseQueue[0]);
-            responseQueue.shift();
-        }else{
-            try{
-                var res = responseQueue[0];
-                var pc = peers[res.peerId];
-                var chunkId = res.chunkId;
-                var fileChunkStr = (files[res.fileId].fileChunkStrs[chunkId]||"");
+//     // If the request is invalid due the peer no longer existing, remove it
+//     while(responseQueue.length > 0 && !peers[responseQueue[0].peerId])
+//         responseQueue.shift();
+//     if(responseQueue.length != 0){
+//         if(!tries){
+//             console.log('Discarding Chunk: ', responseQueue[0]);
+//             responseQueue.shift();
+//         }else{
+//             try{
+//                 var res = responseQueue[0];
+//                 var pc = peers[res.peerId];
+//                 var chunkId = res.chunkId;
+//                 var fileChunkStr = (files[res.fileId].fileChunkStrs[chunkId]||"");
 
-                var data = {type: 'responseChunk', fileId: res.fileId, chunkId: chunkId, endmarker:1};
-                pc.channel.send(JSON.stringify(data)+fileChunkStr);
-                responseQueue.shift();
-                decDelay();
-            }catch(e){
-                incDelay();
-                throw e;
-                console.log(e);
-                console.log('Failed sending, queued for resending');
-                setTimeout(getFunc(processResponseQueue, tries-1), delay);
-                return false;
-            }
+//                 var data = {type: 'responseChunk', fileId: res.fileId, chunkId: chunkId, endmarker:1};
+//                 pc.channel.send(JSON.stringify(data)+fileChunkStr);
+//                 responseQueue.shift();
+//                 decDelay();
+//             }catch(e){
+//                 incDelay();
+//                 throw e;
+//                 console.log(e);
+//                 console.log('Failed sending, queued for resending');
+//                 setTimeout(getFunc(processResponseQueue, tries-1), delay);
+//                 return false;
+//             }
+//         }
+//     }
+    
+//     // If response Queue is filled, schedule next response processing
+//     if(responseQueue.length > 0)
+//         setTimeout(getFunc(processResponseQueue, tryLimit), delay);
+// }
+function processResponse(res, tries){
+    tries = tries || tryLimit;
+    if(!peers[res.peerId])
+        return false;
+
+    if(!tries){
+        console.log('Discarding Chunk: ', res);
+        return false;
+    }else{
+        try{
+            var pc = peers[res.peerId];
+            var chunkId = res.chunkId;
+            var fileChunkStr = (files[res.fileId].fileChunkStrs[chunkId]||"");
+
+            var data = {type: 'responseChunk', fileId: res.fileId, chunkId: chunkId, endmarker:1};
+            pc.channel.send(JSON.stringify(data)+fileChunkStr);
+            decDelay();
+        }catch(e){
+            incDelay();
+            throw e;
+            console.log(e);
+            console.log('Failed sending, queued for resending');
+            setTimeout(function(){
+                processResponse(res, tries-1);
+            }, delay);
+            return false;
         }
     }
-    
-    // If response Queue is filled, schedule next response processing
-    if(responseQueue.length > 0)
-        setTimeout(getFunc(processResponseQueue, tryLimit), delay);
 }
 function updateProgress($target){
     var intervalId;
@@ -388,7 +419,7 @@ function updateProgress($target){
 
         }
     }
-    intervalId = setInterval(update, 500);
+    intervalId = setInterval(update, 800);
 }
 function startDownload(evt){
     $target = $(evt.target).closest('.row');
