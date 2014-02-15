@@ -3,7 +3,6 @@
                     - Redesign Queues
                         - Stopping download
                         - Removing a file from list
-                        - Redownload
                         - limit queue length
                         - serial uploading
                     - Worker Threads for processing responses
@@ -244,9 +243,16 @@ function handleRequest(request, pc){
 function handleResponse(response){
     // if(!reqQueue.length || reqQueue[0].chunkId != response.chunkId || reqQueue[0].fileId != response.fileId)
     //     return false;
-    if(!reqBuff || reqBuff.chunkId != response.chunkId || reqBuff.fileId != response.fileId)
+    if(!reqBuff || reqBuff.chunkId != response.chunkId || reqBuff.fileId != response.fileId){
+        processJobQueue();
         return false;
+    }
     var file = files[response.fileId];
+    if(file.status == 'stopped'){
+        processJobQueue();
+        file.status = 'ready';
+        return false;
+    }
     file.completed++;
     if(file.completed == file.totChunk){
         file.status = "completed";
@@ -254,6 +260,7 @@ function handleResponse(response){
     }
 
     processJobQueue();
+
     file.arraybuf[response.chunkId] = new ArrayBuffer(response.fileChunk.length);
     var bufView = new Uint8Array(file.arraybuf[response.chunkId]);
     for(var i = 0;i<response.fileChunk.length;i++)
@@ -261,8 +268,8 @@ function handleResponse(response){
     // reqQueue.shift();
 }
 function processJobQueue(){
-
-    if(files[jobQueue[jobPtr]].status != "downloading"){
+    var f = files[jobQueue[jobPtr]];
+    if(f.status != "downloading"){
         jobQueue.splice(jobPtr, 1);
         jobQueueLength--;
         jobPtr--;
@@ -278,7 +285,7 @@ function processJobQueue(){
     //     chunkId: files[jobQueue[jobPtr]].completed,
     // });
     reqBuff = {fileId: jobQueue[jobPtr],
-        chunkId: files[jobQueue[jobPtr]].completed,
+        chunkId: f.completed,
     };
     processReq();
 }
@@ -398,9 +405,8 @@ function updateProgress($target){
         $progressBar.attr('aria-valuenow', progress);
         $progressText.text(progress+"%");
 
-        if(file.completed == file.totChunk){    // File Downloaded
+        if(file.status == "completed"){    // File Downloaded
             clearInterval(intervalId);
-            files[fileId].status = "completed";
 
             // Will give really low value for small files due to the 500 ms offset at which it runs
             // need to shift it to other function
@@ -416,23 +422,13 @@ function updateProgress($target){
             var url = URL.createObjectURL(b);
             $saveLink.attr('href', url);
             $saveLink.attr('download', file.file.name);
-
+        }else if(file.status == "ready" || file.status == 'stopped'){
+            clearInterval(intervalId);
+            $progressText.text('');
+            $progressBar.css('width', '0%');
         }
     }
     intervalId = setInterval(update, 800);
-}
-function startDownload(evt){
-    $target = $(evt.target).closest('.row');
-    fileId = $target.data('fileId');
-    files[fileId].status = "downloading";
-    files[fileId].startTime = new Date().getTime();
-    jobQueue.push(fileId);
-    jobQueueLength++;
-
-    updateProgress($target);
-    if(jobQueue.length == 1){   // If job queue newly filled
-        processJobQueue();
-    }
 }
 
 //  Not fully functional right now
@@ -463,6 +459,48 @@ function enableAction($target, func){
     $target.parent().on('click', func);
     $target.parent().attr('href', '');
 }
+function startDownload(evt){
+    evt.stopPropagation();
+    evt.preventDefault();
+
+    $target = $(evt.target).closest('.row');
+    fileId = $target.data('fileId');
+    if(files[fileId].status != "ready")
+        return false;
+    files[fileId].status = "downloading";
+    files[fileId].startTime = new Date().getTime();
+    jobQueue.push(fileId);
+    jobQueueLength++;
+
+    updateProgress($target);
+    if(jobQueue.length == 1){   // If job queue newly filled
+        processJobQueue();
+    }
+
+    disableAction($target.find('.glyphicon-save'));
+    enableAction($target.find('.glyphicon-stop'), function(evt){
+        stopDownload(evt);
+        return false;
+    });
+}
+function stopDownload(evt){
+    evt.stopPropagation();
+    evt.preventDefault();
+
+    $target = $(evt.target).closest('.row');
+    var fileId = $target.data('fileId');
+    var file = files[fileId];
+    file.status = "stopped";
+    file.arraybuf = new Array(file.totChunk);
+    file.completed = 0;
+    disableAction($target.find('.glyphicon-stop'));
+    enableAction($newFileDiv.find('.glyphicon-save'), function (evt){
+        startDownload(evt);
+        return false;
+    });
+
+    return false;
+}
 function addFile(data){
     $newFileDiv = $fileClient.clone();
     $newFileDiv.data('fileId', data.fileId);
@@ -473,15 +511,6 @@ function addFile(data){
     // Enable Download Button
     $downBut = $newFileDiv.find('.glyphicon-save');
     enableAction($downBut, function (evt){
-        evt.stopPropagation();
-        evt.preventDefault();
-
-        $target = $(evt.target).parent().parent();
-        disableAction($target.find('.glyphicon-save'));
-        enableAction($target.find('.glyphicon-stop'), function(){
-            return false;
-        });
-
         startDownload(evt);
         return false;
     });
