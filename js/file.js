@@ -268,8 +268,7 @@ function handleResponse(response){
     // reqQueue.shift();
 }
 function processJobQueue(){
-    var f = files[jobQueue[jobPtr]];
-    if(f.status != "downloading"){
+    if(files[jobQueue[jobPtr]].status != "downloading"){
         jobQueue.splice(jobPtr, 1);
         jobQueueLength--;
         jobPtr--;
@@ -285,7 +284,7 @@ function processJobQueue(){
     //     chunkId: files[jobQueue[jobPtr]].completed,
     // });
     reqBuff = {fileId: jobQueue[jobPtr],
-        chunkId: f.completed,
+        chunkId: files[jobQueue[jobPtr]].completed,
     };
     processReq();
 }
@@ -460,8 +459,6 @@ function enableAction($target, func){
     $target.parent().attr('href', '');
 }
 function startDownload(evt){
-    evt.stopPropagation();
-    evt.preventDefault();
 
     $target = $(evt.target).closest('.row');
     fileId = $target.data('fileId');
@@ -479,13 +476,13 @@ function startDownload(evt){
 
     disableAction($target.find('.glyphicon-save'));
     enableAction($target.find('.glyphicon-stop'), function(evt){
+        evt.stopPropagation();
+        evt.preventDefault();
         stopDownload(evt);
         return false;
     });
 }
 function stopDownload(evt){
-    evt.stopPropagation();
-    evt.preventDefault();
 
     $target = $(evt.target).closest('.row');
     var fileId = $target.data('fileId');
@@ -511,6 +508,8 @@ function addFile(data){
     // Enable Download Button
     $downBut = $newFileDiv.find('.glyphicon-save');
     enableAction($downBut, function (evt){
+        evt.stopPropagation();
+        evt.preventDefault();
         startDownload(evt);
         return false;
     });
@@ -597,7 +596,6 @@ function createRoom(){
                     .html('Users may join your room and download the shared files by visiting <br /> \
                         '+window.location)
                     .show();
-        processResponseQueue(tryLimit);
     });
 }
 function joinRoom(){
