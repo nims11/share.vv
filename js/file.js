@@ -4,7 +4,7 @@
                         - Stopping download
                         - Removing a file from list
                         - limit queue length
-                        - serial uploading
+
                     - Worker Threads for processing responses
                     - Download all
                     - Checksum
@@ -459,8 +459,7 @@ function enableAction($target, func){
     $target.parent().attr('href', '');
 }
 function startDownload(evt){
-
-    $target = $(evt.target).closest('.row');
+    var $target = $(evt.target).closest('.row');
     fileId = $target.data('fileId');
     if(files[fileId].status != "ready")
         return false;
@@ -483,15 +482,14 @@ function startDownload(evt){
     });
 }
 function stopDownload(evt){
-
-    $target = $(evt.target).closest('.row');
+    var $target = $(evt.target).closest('.row');
     var fileId = $target.data('fileId');
     var file = files[fileId];
     file.status = "stopped";
     file.arraybuf = new Array(file.totChunk);
     file.completed = 0;
     disableAction($target.find('.glyphicon-stop'));
-    enableAction($newFileDiv.find('.glyphicon-save'), function (evt){
+    enableAction($target.find('.glyphicon-save'), function (evt){
         startDownload(evt);
         return false;
     });
