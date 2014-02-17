@@ -121,7 +121,7 @@ function getFunc(func, arg){
 }
 
 function getChunkSize(){
-    return 12000;
+    return 10000;
 }
 
 function noOfChunks(size, chunkSize){
