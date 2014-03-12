@@ -1,7 +1,6 @@
 /*
     Things to implement 
                     - Redesign Queues
-                        - Stopping download
                         - Removing a file from list
                         - limit queue length
 
@@ -161,9 +160,12 @@ function newPeer(sock){   // Arguments applicable only for the leader
             }
         }
     }
+    var dataChannelOptions = {
+        ordered: false,
+    }
 
     if(isLeader) {  // Create a channel if initiator
-        pc.channel = pc.createDataChannel("sendDataChannel");
+        pc.channel = pc.createDataChannel("sendDataChannel", dataChannelOptions);
         setupChannel(pc.channel);
         pc.channel.onopen = function(){
             console.log('User Joined');
@@ -307,62 +309,7 @@ function processReq(tries){
         setTimeout(getFunc(processReq, tries-1), delay);
     }
 }
-// function processReqQueue(tries){
-//     tries = tries || tryLimit;
-//     // if(reqQueue.length == 0)
-//     //     return true;
-//     if(!tries){
-//         console.log('Stalling Download, failed');
-//         return false;
-//     }
-//     var req = reqQueue[0];
-//     try{
-//         var data = {type: 'reqChunk', fileId: req.fileId, chunkId: req.chunkId};
-//         pc.channel.send(JSON.stringify(data));
-//         decDelay();
-//     }catch(e){
-//         console.log(e);
-//         console.log('Failed sending, queued for resending');
-//         incDelay();
-//         setTimeout(getFunc(processReqQueue, tries-1), delay);
-//     }
-// }
-// function processResponseQueue(tries){
-//     tries = tries || tryLimit;
 
-//     // If the request is invalid due the peer no longer existing, remove it
-//     while(responseQueue.length > 0 && !peers[responseQueue[0].peerId])
-//         responseQueue.shift();
-//     if(responseQueue.length != 0){
-//         if(!tries){
-//             console.log('Discarding Chunk: ', responseQueue[0]);
-//             responseQueue.shift();
-//         }else{
-//             try{
-//                 var res = responseQueue[0];
-//                 var pc = peers[res.peerId];
-//                 var chunkId = res.chunkId;
-//                 var fileChunkStr = (files[res.fileId].fileChunkStrs[chunkId]||"");
-
-//                 var data = {type: 'responseChunk', fileId: res.fileId, chunkId: chunkId, endmarker:1};
-//                 pc.channel.send(JSON.stringify(data)+fileChunkStr);
-//                 responseQueue.shift();
-//                 decDelay();
-//             }catch(e){
-//                 incDelay();
-//                 throw e;
-//                 console.log(e);
-//                 console.log('Failed sending, queued for resending');
-//                 setTimeout(getFunc(processResponseQueue, tries-1), delay);
-//                 return false;
-//             }
-//         }
-//     }
-    
-//     // If response Queue is filled, schedule next response processing
-//     if(responseQueue.length > 0)
-//         setTimeout(getFunc(processResponseQueue, tryLimit), delay);
-// }
 function processResponse(res, tries){
     tries = tries || tryLimit;
     if(!peers[res.peerId])
